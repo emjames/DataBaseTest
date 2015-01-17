@@ -1,6 +1,7 @@
 package sample;
 
 import javafx.application.Application;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -10,10 +11,20 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception{
-        Parent root = FXMLLoader.load(getClass().getResource("sample.fxml"));
-        primaryStage.setTitle("Login");
-        primaryStage.setScene(new Scene(root, 300, 275));
+      LoginController loginController = new LoginController();
+        loginController.launchLoginController(primaryStage);
+
+/*
+        Parent login = FXMLLoader.load(getClass().getResource("login.fxml"));
+        primaryStage.setTitle("TaggR");
+        primaryStage.setScene(new Scene(login));
         primaryStage.show();
+
+
+        Parent mainWin = FXMLLoader.load(getClass().getResource("home.fxml")) ;
+        primaryStage.setScene(new Scene(mainWin));
+        primaryStage.show();
+*/
     }
 
 
