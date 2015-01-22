@@ -8,15 +8,15 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.TableView;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
-import java.awt.font.FontRenderContext;
+import javax.swing.table.TableColumn;
 import java.io.File;
 import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -24,12 +24,16 @@ import java.util.List;
  */
 public class HomeController {
     public Button btnOpenFile;
+    public TableView tableView;
     private Scene scene;
 
     //Database stuff
-    private static final String dir = System.getProperty("user.home") + "/JavaFXDatabase/";
-    private static final String dbURL = "jdbc:derby:";
+    //private static final String dir = System.getProperty("user.home" + "/JavaFXDatabase/");
     private static final String dbDriver = "org.apache.derby.jdbc.EmbeddedDriver";
+    private static final String dbURL = "jdbc:derby:TaggR";
+//    private static final Connection connection= DriverManager.getConnection(dbURL);
+    private static Connection connection = null;
+    private static Statement statement = null;
     private static final String user = "app";
     private static final String password = "app";
     private static final List<File> dummyFileList = new ArrayList<File>();
@@ -44,6 +48,11 @@ public class HomeController {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        try {
+            createTagFileTable();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
 
     }
     @FXML
@@ -55,87 +64,64 @@ public class HomeController {
 
         for (int i = 0; i < filesToOpen.size(); i++) {
             //System.out.println(filesToOpen.get(i));
+            //add file one by one in loop
+            addFile(filesToOpen.get(i));
             System.out.println(filesToOpen.get(i).getAbsolutePath());
             System.out.println(filesToOpen.get(i).getName());
             System.out.println(filesToOpen.get(i).hashCode());
         }
-        runServer();
-    }
-
-    public void runServer() throws SQLException {
-        System.out.println("JavaFXDB - " + dir +")");
-
-        try {
-            DriverManager.getConnection("jdbc:derby:;shutdown=true");
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        try {
-            //Load Driver
-            Class.forName(dbDriver).newInstance();
-        } catch (Exception e){
-            System.err.println("ERROR: Could not load driver!");
-            e.printStackTrace(System.err);
-        }
-        //Test the connection
-        Connection connection = DriverManager.getConnection(dbURL + "derbyDB;create=true", user, password);
-        try {
-            //do something here
-            createFileTable(connection);
-        } catch (Exception e){
-            System.out.println(e.getMessage());
-        }
-
-        connection.close();
     }
 
     private Connection getConnection() throws SQLException {
         return DriverManager.getConnection(dbURL, user, password);
     }
-    private void createFileTable(Connection connection) throws SQLException {
-        Statement statement = connection.createStatement();
-        statement.execute("CREATE TABLE FILES(" +
-                            "ID int," +
-                            "NAME varchar(30)," +
-                            "TAG varchar(30),");
+    private void createTagFileTable() throws SQLException {
+        try {
+            Class.forName(dbDriver);
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        try {
+            connection = DriverManager.getConnection(dbURL + ";create=true");
+            System.out.println("connection created");
+            statement = connection.createStatement();
+            statement.execute("CREATE TABLE FILES (Fhash INT, FName VARCHAR(20), FLocation VARCHAR (50))");
+            statement.execute("CREATE TABLE TAGS(Fhash INT, TName VARCHAR(20))");
+            System.out.println("Table created.");
+        } catch (SQLException e){
+            if(DerbyUtils.tableAlreadyExists(e)){
+                System.out.println("Table already exists.");
+            }else{
+                e.printStackTrace();
+            }
+        }
+        statement.close();
+        connection.close();
+        System.out.println("connection closed");
     }
 
     public void dropFileTable() throws SQLException {
-        Connection connection = getConnection();
-        Statement statement = connection.createStatement();
+        connection = getConnection();
+        statement = connection.createStatement();
         statement.execute("DROP TABLE FILES");
         connection.close();
     }
 
     public void deleteAllFiles() throws Exception {
-        Connection con = getConnection();
-        Statement statement = con.createStatement();
-        statement.execute("DELETE FROM FILES");
-        con.close();
+        connection = getConnection();
+        statement = connection.createStatement();
+        statement.execute("DELETE * FROM FILES");
+        connection.close();
     }
 
     public void deleteFile(File file) throws Exception {
-        Connection con = getConnection();
+        connection = getConnection();
+        statement = connection.createStatement();
         int fileID;
         //get the id from the database
-        PreparedStatement preparedStatement = con.prepareStatement("SELECT *" +
-                "FROM FILES" +
-                "WHERE NAME=?");
-        preparedStatement.setString(1, file.getName());
-        fileID = preparedStatement.executeUpdate();
-
-        PreparedStatement prepStatement = con.prepareStatement(
-                "DELETE FROM FILES WHERE ID=? AND \"NAME\"=?"
-        );
-        prepStatement.setInt(1, fileID);
-        prepStatement.setString(2, file.getName());
-        prepStatement.executeUpdate();
-        con.close();
     }
 
     public void populateDummyData() throws SQLException {
-        Connection connection = getConnection();
         PreparedStatement preparedStatement = connection.prepareStatement("" +
                         "INSERT INTO FILES(ID, \"NAME\", TAG) VALUES(?,?,?");
 
@@ -146,6 +132,44 @@ public class HomeController {
             preparedStatement.executeUpdate();
         }
     }
+
+    public void addFile(File fileToInsert) throws SQLException {
+    //Add new files received from the open dialog
+        //System.out.println(filesToOpen.get(i).getAbsolutePath());
+        //System.out.println(filesToOpen.get(i).getName());
+        //System.out.println(filesToOpen.get(i).hashCode());
+        ResultSet resultSet;
+        try {
+            Class.forName(dbDriver);
+            connection = DriverManager.getConnection(dbURL);
+            System.out.println("connection created");
+            statement = connection.createStatement();
+            statement.execute("INSERT INTO files VALUES " +
+                                "(" + fileToInsert.hashCode() + ", '" +
+                                fileToInsert.getName() + "', '" +
+                                fileToInsert.getAbsolutePath() + "')");
+            System.out.println("Inserted new file.");
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        statement.close();
+        connection.close();
+        System.out.println("connection closed");
+    }
+
+    public void buildData() throws SQLException {
+        connection = DriverManager.getConnection(dbURL);
+        System.out.println("connection created");
+        statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery("SELECT * FROM files");
+
+        /*
+        table column added dynamically
+         */
+
+    }
+
     public void redirectHome(Stage stage){
         stage.setTitle("TaggR");
         stage.setScene(scene);
